@@ -1,5 +1,6 @@
+require 'csv'
+require 'date'
 require "minitest/autorun"
-
 
 class ApplicationService
   def self.call(*args, &block)
@@ -11,6 +12,31 @@ class CsvPatientParsingService < ApplicationService
     def initialize(file_path, test_mode=false)
     end
     def call
+    end
+    private
+    
+    def map_header_indexes(header_array)
+     
+    end
+
+    def validate_mandatory_fields(row)
+    
+    end
+
+    def trim_white_space_for_all_fields(row)
+       
+    end
+
+    def format_phone_numbers_to_e164(row)
+       
+    end
+
+    def transform_date_columns_to_iso_8601(row)
+       
+    end
+    
+    def write_output_to_file
+       
     end
 end
 
