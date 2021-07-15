@@ -15,7 +15,7 @@ class CsvPatientParsingService < ApplicationService
    
    def initialize(file_path, test_mode=false)
      @file_path = file_path
-     @malformed_rows = Hash.new{|h,k| h[k] = [] }
+     @malformed_rows = Hash.new{|h,k| h[k] = [] }.compare_by_identity
      @output_rows = []
      @phone_fields = [:phone_number]
      @test_mode = test_mode
