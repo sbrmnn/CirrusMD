@@ -26,7 +26,7 @@ class CsvPatientParsingService < ApplicationService
    end
 
    def call
-      csv = CSV.open(file_path)
+      csv = CSV.open(file_path, 'r:bom|utf-8')
       map_header_indexes(csv.readline)
       while (row = csv.readline) do
         trim_white_space_for_all_fields(row)
