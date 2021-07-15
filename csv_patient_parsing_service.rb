@@ -2,6 +2,12 @@ require 'csv'
 require 'date'
 require "minitest/autorun"
 
+=begin
+# Instructions:
+  1). call -> CsvPatientParsingService.call('input.csv')
+  2). Check the newly created output.csv and report.txt located within the same directory as the script.
+  3). Run ruby csv_patient_pasing_service.rb to run tests.
+=end
 class ApplicationService
   def self.call(*args, &block)
     new(*args, &block).call
