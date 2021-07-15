@@ -9,36 +9,142 @@ class ApplicationService
 end
 
 class CsvPatientParsingService < ApplicationService
-    def initialize(file_path, test_mode=false)
-    end
-    def call
-    end
-    private
-    
-    def map_header_indexes(header_array)
+   attr_reader :phone_fields, :mandatory_fields, :file_path,
+     :header_index_map, :date_fields, :malformed_rows, :output_rows,
+     :test_mode
+   
+   def initialize(file_path, test_mode=false)
+     @file_path = file_path
+     @malformed_rows = Hash.new{|h,k| h[k] = [] }
+     @output_rows = []
+     @phone_fields = [:phone_number]
+     @test_mode = test_mode
+     @mandatory_fields = [:first_name, :last_name, :dob,
+       :member_id, :effective_date, :phone_number]
+     @date_fields = [:effective_date, :dob, :expiry_date]
+     @header_index_map = {}
+   end
+
+   def call
+      csv = CSV.open(file_path)
+      map_header_indexes(csv.readline)
+      while (row = csv.readline) do
+        trim_white_space_for_all_fields(row)
+        validate_mandatory_fields(row)
+        format_phone_numbers_to_e164(row)
+        transform_date_columns_to_iso_8601(row)
+        
+        output_rows << row if malformed_rows[row].size == 0
+      end
+      csv.close
+
+      write_output_to_file
+
+      self
+   end
+
+   private
+   
+   def map_header_indexes(header_array)
+     header_array.each_with_index do |header, index|
+       header_index_map[header.to_sym] = index
+     end
      
+     mandatory_fields_missing = []
+
+     mandatory_fields.each do |mf|
+       mandatory_fields_missing << mf  if header_index_map[mf].nil?
+     end
+
+     if mandatory_fields_missing.size > 0
+       raise "Mandatory field(s) missing in CSV: #{ mandatory_fields_missing.join(',') }"
+     end
+
+     header_index_map
     end
 
-    def validate_mandatory_fields(row)
-    
-    end
+   def validate_mandatory_fields(row)
+     mandatory_fields.each do |mf|
+       if row[header_index_map[mf]] == '' || row[header_index_map[mf]].nil?
+         malformed_rows[row] << [mf, 'is missing'].join(' ')
+       end
+     end
+   end
 
-    def trim_white_space_for_all_fields(row)
-       
-    end
+   def trim_white_space_for_all_fields(row)
+     row.each do |val|
+       val.strip! if val
+     end
+   end
 
-    def format_phone_numbers_to_e164(row)
-       
-    end
+   def format_phone_numbers_to_e164(row)
+     phone_fields.each do |pf|
+       next if header_index_map[pf].nil? || row[header_index_map[pf]].nil?
 
-    def transform_date_columns_to_iso_8601(row)
-       
-    end
-    
-    def write_output_to_file
-       
-    end
+       row[header_index_map[pf]].tr!('^0-9', '')
+
+       if row[header_index_map[pf]].size < 10
+         malformed_rows[row] << [pf, 'is less than 10 digits'].join(' ')
+       elsif row[header_index_map[pf]].size == 10
+        row[header_index_map[pf]] = '+' << '1' << row[header_index_map[pf]]
+       else
+         row[header_index_map[pf]] = '+' << row[header_index_map[pf]]
+       end
+     end
+   end
+
+   def transform_date_columns_to_iso_8601(row)
+     date_fields.each do |df|
+        next if header_index_map[df].nil? || row[header_index_map[df]].nil?
+
+        date_array = row[header_index_map[df]].split(/\D+/)
+
+        if date_array.size != 3
+          malformed_rows[row] << [df, 'is malformed.'].join(' ')
+        elsif date_array.first.size == 4
+          row[header_index_map[df]] = date_array.join('-')
+        elsif date_array.last.size == 4
+          year =  date_array.last
+          month = date_array.first.size == 1 ? '0' << date_array.first : date_array.first
+          day =   date_array[1].size == 1 ?  '0' << date_array[1] : date_array[1]
+          row[header_index_map[df]] = "#{year}-#{month}-#{day}"
+        elsif date_array.last.size == 2
+          year =  '20' << date_array.last
+          month = date_array.first.size == 1 ? '0' << date_array.first : date_array.first
+          day =   date_array[1].size == 1 ?  '0' << date_array[1] : date_array[1]
+          row[header_index_map[df]] = "#{year}-#{month}-#{day}"
+        else
+           malformed_rows[row] << [df, 'is malformed.'].join(' ')
+        end
+     end
+   end
+   
+   def write_output_to_file
+     CSV.open(test_mode ? "output_test.csv" : "output.csv", "wb") do |csv|
+       csv << [:first_name, :last_name, :dob, :member_id,
+         :effective_date, :expiry_date, :phone_number]
+       output_rows.each do |output_row|
+        csv << output_row
+       end
+     end
+
+     File.open(test_mode ? "report_test.txt" : "report.txt", "w") do |line|
+       failure_count = 0
+       malformed_rows.keys.each do |k|
+         next if malformed_rows[k].size == 0
+         failure_count  +=1
+         line.write [k, malformed_rows[k]].flatten.to_s + "\n"
+       end
+       line.write "Success: #{output_rows.size}\n"
+       line.write "Failure: #{failure_count}\n"
+     end
+   end
 end
+
+CsvPatientParsingService.call('input.csv')
+
+CsvPatientParsingService.call('input_test.csv', true)
+
 
 class CsvPatientParsingServiceTest < Minitest::Test
   def setup
